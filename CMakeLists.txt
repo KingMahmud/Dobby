@@ -79,7 +79,6 @@ include_directories(
 
   ./external
   ./external/logging
-  ./external/misc-helper
 
   ./builtin-plugin
 )
@@ -229,13 +228,13 @@ endif ()
 
 # ---
 
-if (SYSTEM.iOS AND (NOT BUILDING_KERNEL))
+if (0 AND SYSTEM.iOS AND (NOT BUILDING_KERNEL))
   include_directories(
-    source/Backend/UserMode/ExecMemory/substrated/include
+    source/Backend/UserMode/ExecMemory/substrated
   )
   add_definitions(-DCODE_PATCH_WITH_SUBSTRATED)
   set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}
-    source/Backend/UserMode/ExecMemory/substrated/mach_interface_support/substrated_client.c
+    source/Backend/UserMode/ExecMemory/substrated/mach_interface_support
     )
 endif ()
 
@@ -262,9 +261,6 @@ if (NearBranch)
 endif ()
 
 # ---
-
-add_subdirectory(external/misc-helper)
-get_target_property(misc_helper.SOURCE_FILE_LIST misc_helper SOURCES)
 
 # add logging library
 add_subdirectory(external/logging)
