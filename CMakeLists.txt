@@ -312,7 +312,6 @@ if (DOBBY_GENERATE_SHARED)
 else ()
   message(STATUS "[Dobby] Generate static library")
   set(DOBBY_LIBRARY_TYPE STATIC)
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif ()
 add_library(dobby ${DOBBY_LIBRARY_TYPE} ${dobby.HEADER_FILE_LIST} ${dobby.SOURCE_FILE_LIST} ${logging.SOURCE_FILE_LIST} ${misc_helper.SOURCE_FILE_LIST} ${dobby.plugin.SOURCE_FILE_LIST})
 
