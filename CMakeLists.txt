@@ -347,8 +347,6 @@ set_target_properties(dobby_static
   COMPILE_FLAGS "${compiler_flags}"
   )
 
-set_property(TARGET dobby_static PROPERTY POSITION_INDEPENDENT_CODE ON)
-
 # ---
 
 if (SYSTEM.Android)
