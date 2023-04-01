@@ -363,6 +363,8 @@ target_compile_definitions(dobby PRIVATE
 target_compile_definitions(dobby_static PRIVATE
   "COMPILE_DEFINITIONS ${compile_definitions}"
   )
+  
+set_property(TARGET dobby_static PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # ---
 
