@@ -1,7 +1,6 @@
 #pragma once
 
-#include <stdint.h>
-#include <stdbool.h>
+#include <sys/types.h>
 #include <mach-o/loader.h>
 #include <mach-o/nlist.h>
 
@@ -19,14 +18,26 @@ typedef struct nlist nlist_t;
 #define LC_SEGMENT_ARCH_DEPENDENT LC_SEGMENT
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+intptr_t read_sleb128(const uint8_t **pp, const uint8_t *end);
 
-typedef struct macho_ctx {
+uintptr_t read_uleb128(const uint8_t **pp, const uint8_t *end);
+
+typedef enum {
+  RESOLVE_SYMBOL_TYPE_SYMBOL_TABLE = 1 << 0,
+  RESOLVE_SYMBOL_TYPE_EXPORTED = 1 << 1,
+  RESOLVE_SYMBOL_TYPE_ALL = RESOLVE_SYMBOL_TYPE_SYMBOL_TABLE | RESOLVE_SYMBOL_TYPE_EXPORTED
+} resolve_symbol_type_t;
+
+struct macho_ctx_t {
   bool is_runtime_mode;
 
   mach_header_t *header;
+  mach_header_t *cache_header;
+
+  uintptr_t load_vmaddr;
+  size_t vmsize;
+  uintptr_t vm_region_start;
+  uintptr_t vm_region_end;
 
   uintptr_t slide;
   uintptr_t linkedit_base;
@@ -49,40 +60,37 @@ typedef struct macho_ctx {
   nlist_t *symtab;
   char *strtab;
   uint32_t *indirect_symtab;
-} macho_ctx_t;
 
-intptr_t read_sleb128(const uint8_t **pp, const uint8_t *end);
+  explicit macho_ctx_t(mach_header_t *header, bool is_runtime_mode = true, mach_header_t *cache_header = 0) {
+    init(header, is_runtime_mode, cache_header);
+  }
 
-uintptr_t read_uleb128(const uint8_t **pp, const uint8_t *end);
+  uint8_t *seg_content(segment_command_t *seg) {
+    auto header_ = cache_header ? cache_header : header;
+    auto seg_offset = is_runtime_mode ? seg->vmaddr - load_vmaddr : seg->fileoff;
+    return (uint8_t *)header_ + seg_offset;
+  }
 
-void macho_ctx_init(macho_ctx_t *ctx, mach_header_t *header, bool is_runtime_mode);
+  section_t *sect(char *seg_name, char *sect_name);
 
-uintptr_t macho_ctx_iterate_symbol_table(macho_ctx_t *ctx, const char *symbol_name_pattern);
+  uint8_t *sect_content(section_t *sect);
 
-uintptr_t macho_ctx_iterate_exported_symbol(macho_ctx_t *ctx, const char *symbol_name, uint64_t *out_flags);
+  void init(mach_header_t *header, bool is_runtime_mode, mach_header_t *cache_header);
 
-typedef enum {
-  RESOLVE_SYMBOL_TYPE_SYMBOL_TABLE = 1 << 0,
-  RESOLVE_SYMBOL_TYPE_EXPORTED = 1 << 1,
-  RESOLVE_SYMBOL_TYPE_ALL = RESOLVE_SYMBOL_TYPE_SYMBOL_TABLE | RESOLVE_SYMBOL_TYPE_EXPORTED
-} resolve_symbol_type_t;
+  uintptr_t iterate_symbol_table(const char *symbol_name_pattern);
 
-uintptr_t macho_ctx_symbol_resolve_options(macho_ctx_t *ctx, const char *symbol_name_pattern,
-                                           resolve_symbol_type_t type);
+  uintptr_t iterate_exported_symbol(const char *symbol_name, uint64_t *out_flags);
 
-uintptr_t macho_ctx_symbol_resolve(macho_ctx_t *ctx, const char *symbol_name_pattern);
+  uintptr_t symbol_resolve_options(const char *symbol_name_pattern, resolve_symbol_type_t type);
 
-uintptr_t macho_symbol_resolve_options(mach_header_t *header, const char *symbol_name_pattern,
-                                       resolve_symbol_type_t type);
+  uintptr_t symbol_resolve(const char *symbol_name_pattern);
+};
 
-uintptr_t macho_symbol_resolve(mach_header_t *header, const char *symbol_name_pattern);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 uintptr_t macho_iterate_symbol_table(char *name_pattern, nlist_t *symtab, uint32_t symtab_count, char *strtab);
-
-uintptr_t macho_file_memory_symbol_resolve(cpu_type_t cpu, cpu_subtype_t subtype, const uint8_t *file_mem,
-                                           char *symbol_name_pattern);
-
-uintptr_t macho_file_symbol_resolve(cpu_type_t cpu, cpu_subtype_t subtype, const char *file, char *symbol_name_pattern);
 
 #ifdef __cplusplus
 }

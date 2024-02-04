@@ -1,5 +1,12 @@
-#include "dobby/dobby_internal.h"
+#include "dobby.h"
+#include "dobby/common.h"
 #include "Interceptor.h"
+#include "InterceptRouting/InlineHookRouting.h"
+#include "InterceptRouting/InstrumentRouting.h"
+#include "InterceptRouting/NearBranchTrampoline/NearBranchTrampoline.h"
+#include "TrampolineBridge/ClosureTrampolineBridge/common_bridge_handler.h"
+#include "MemoryAllocator/NearMemoryAllocator.h"
+#include <stdint.h>
 
 __attribute__((constructor)) static void ctor() {
   DEBUG_LOG("================================");
@@ -8,24 +15,39 @@ __attribute__((constructor)) static void ctor() {
   DEBUG_LOG("================================");
 }
 
-PUBLIC const char *DobbyGetVersion() {
-  return __DOBBY_BUILD_VERSION__;
-}
-
 PUBLIC int DobbyDestroy(void *address) {
-#if defined(TARGET_ARCH_ARM)
-  if ((addr_t)address % 2) {
-    address = (void *)((addr_t)address - 1);
+  __FUNC_CALL_TRACE__();
+  if (!address) {
+    ERROR_LOG("address is 0x0");
+    return -1;
   }
-#endif
-  auto entry = Interceptor::SharedInstance()->find((addr_t)address);
+
+  features::arm_thumb_fix_addr(address);
+  features::apple::arm64e_pac_strip(address);
+
+  auto entry = gInterceptor.find((addr_t)address);
   if (entry) {
-    uint8_t *buffer = entry->origin_insns;
-    uint32_t buffer_size = entry->origin_insn_size;
-    DobbyCodePatch(address, buffer, buffer_size);
-    Interceptor::SharedInstance()->remove((addr_t)address);
+    gInterceptor.remove((addr_t)address);
+    entry->restore_orig_code();
+    // FIXME: delete entry safely
+    // delete entry;
     return 0;
   }
 
   return -1;
+}
+
+PUBLIC void dobby_set_options(bool enable_near_trampoline, dobby_alloc_near_code_callback_t alloc_near_code_callback) {
+  dobby_set_near_trampoline(enable_near_trampoline);
+  dobby_register_alloc_near_code_callback(alloc_near_code_callback);
+}
+
+PUBLIC uintptr_t placeholder() {
+  uintptr_t x = 0;
+  x += (uintptr_t)&DobbyHook;
+  x += (uintptr_t)&DobbyInstrument;
+  x += (uintptr_t)&dobby_set_near_trampoline;
+  x += (uintptr_t)&common_closure_bridge_handler;
+  x += (uintptr_t)&dobby_register_alloc_near_code_callback;
+  return x;
 }

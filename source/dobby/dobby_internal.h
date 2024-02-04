@@ -2,12 +2,12 @@
 
 #include "dobby/common.h"
 
-#include "UnifiedInterface/platform.h"
+#include "PlatformUnifiedInterface/platform.h"
 
-#include "PlatformUnifiedInterface/MemoryAllocator.h"
 #include "PlatformUnifiedInterface/ExecMemory/CodePatchTool.h"
 #include "PlatformUnifiedInterface/ExecMemory/ClearCacheTool.h"
 
-#include "MemoryAllocator/AssemblyCodeBuilder.h"
+#include "MemoryAllocator/AssemblerCodeBuilder.h"
+#include "MemoryAllocator/MemoryAllocator.h"
 
 #include "InterceptRouting/InterceptRouting.h"

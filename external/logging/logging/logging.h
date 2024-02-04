@@ -23,6 +23,8 @@ typedef enum {
 
 class Logger {
 public:
+  LogLevel log_level_;
+
   const char *log_tag_;
 
   const char *log_file_;
@@ -32,26 +34,10 @@ public:
   FILE *log_file_stream_;
 #endif
 
-  LogLevel log_level_;
-
   bool enable_time_tag_;
-
   bool enable_syslog_;
 
-  static Logger *g_logger;
-  static Logger *Shared() {
-    if (g_logger == nullptr) {
-      g_logger = new Logger();
-    }
-    return g_logger;
-  }
-
   Logger() {
-    log_tag_ = nullptr;
-    log_file_ = nullptr;
-    log_level_ = LOG_LEVEL_DEBUG;
-    enable_time_tag_ = false;
-    enable_syslog_ = false;
   }
 
   Logger(const char *tag, const char *file, LogLevel level, bool enable_time_tag, bool enable_syslog) {
@@ -61,6 +47,8 @@ public:
     enable_time_tag_ = enable_time_tag;
     enable_syslog_ = enable_syslog;
   }
+
+  static Logger *Shared();
 
   void setOptions(const char *tag, const char *file, LogLevel level, bool enable_time_tag, bool enable_syslog) {
     if (tag)
@@ -98,7 +86,7 @@ public:
     enable_syslog_ = true;
   }
 
-  void logv(LogLevel level, const char *fmt, va_list ap);
+  void logv(LogLevel level, const char *in_fmt, va_list ap);
 
   void log(LogLevel level, const char *fmt, ...) {
     va_list ap;
@@ -162,12 +150,19 @@ void logger_set_options(void *logger, const char *tag, const char *file, LogLeve
                         bool enable_syslog);
 void logger_log_impl(void *logger, LogLevel level, const char *fmt, ...);
 
+#if defined(LOG_LEVEL)
+#else
+#define LOG_LEVEL LOG_LEVEL_DEBUG
+#endif
+
 #ifdef __cplusplus
 }
 #endif
 
 #define LOG(level, fmt, ...)                                                                                           \
   do {                                                                                                                 \
+    if (LOG_LEVEL > level)                                                                                             \
+      break;                                                                                                           \
     if (LOG_TAG)                                                                                                       \
       LOG_FUNCTION_IMPL(NULL, level, "[%s] " fmt, LOG_TAG, ##__VA_ARGS__);                                             \
     else                                                                                                               \
@@ -191,14 +186,23 @@ void logger_log_impl(void *logger, LogLevel level, const char *fmt, ...);
 
 #define ERROR_LOG(fmt, ...)                                                                                            \
   do {                                                                                                                 \
-    LOG(LOG_LEVEL_ERROR, "[!] [%s:%d:%s]" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__);                           \
+    LOG(LOG_LEVEL_ERROR, "[!] [%s:%d:%s] " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__);                          \
   } while (0)
 
 #define FATAL_LOG(fmt, ...)                                                                                            \
   do {                                                                                                                 \
-    LOG(LOG_LEVEL_FATAL, "[!] [%s:%d:%s]" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__);                           \
-    abort();                                                                                                           \
+    LOG(LOG_LEVEL_FATAL, "[!] [%s:%d:%s] " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__);                          \
+    *(uint64_t *)0x41414141 = 0x41414141;                                                                              \
   } while (0)
+
+#if defined(NO_FUNC_CALL_TRACE)
+#define __FUNC_CALL_TRACE__()
+#else
+#define __FUNC_CALL_TRACE__()                                                                                          \
+  do {                                                                                                                 \
+    DEBUG_LOG("[+] call -> %s:%d", __PRETTY_FUNCTION__, __LINE__);                                                     \
+  } while (0)
+#endif
 
 #define UNIMPLEMENTED() FATAL_LOG("%s\n", "unimplemented code!!!")
 #define UNREACHABLE() FATAL_LOG("%s\n", "unreachable code!!!")

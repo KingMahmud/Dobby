@@ -8,9 +8,9 @@ include(cmake/build_environment_check.cmake)
 include(cmake/auto_source_group.cmake)
 include(cmake/xcode_generator_helper.cmake)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 17)
 
 auto_source_group("." "auto-source-group" "\\.(cc|cpp|c|h)$")
 
@@ -59,6 +59,8 @@ else ()
   set(compile_definitions "${compile_definitions} -DDOBBY_LOGGING_DISABLE")
 endif ()
 
+set(compile_definitions "${compile_definitions} -DBUILD_WITH_TRAMPOLINE_ASM")
+
 if (CMAKE_GENERATOR STREQUAL Xcode)
 endif ()
 
@@ -90,11 +92,7 @@ include_directories(
   ./builtin-plugin
 )
 
-if (SYSTEM.Darwin AND DOBBY_BUILD_KERNEL_MODE)
-  include_directories(
-    source/Backend/KernelMode
-  )
-else ()
+if (SYSTEM.Darwin AND (NOT DOBBY_BUILD_KERNEL_MODE))
   include_directories(
     source/Backend/UserMode
   )
@@ -105,26 +103,18 @@ endif ()
 set(DOBBY_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}
   # cpu
-  source/core/arch/CpuFeature.cc
-  source/core/arch/CpuRegister.cc
 
   # assembler
-  source/core/assembler/assembler.cc
   source/core/assembler/assembler-arm.cc
-  source/core/assembler/assembler-arm64.cc
   source/core/assembler/assembler-ia32.cc
   source/core/assembler/assembler-x64.cc
 
   # codegen
   source/core/codegen/codegen-arm.cc
-  source/core/codegen/codegen-arm64.cc
   source/core/codegen/codegen-ia32.cc
   source/core/codegen/codegen-x64.cc
 
   # memory kit
-  source/MemoryAllocator/CodeBuffer/CodeBufferBase.cc
-  source/MemoryAllocator/AssemblyCodeBuilder.cc
-  source/MemoryAllocator/MemoryAllocator.cc
 
   # instruction relocation
   source/InstructionRelocation/arm/InstructionRelocationARM.cc
@@ -135,16 +125,20 @@ set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}
   source/InstructionRelocation/x86/x86_insn_decode/x86_insn_decode.c
 
   # intercept routing
-  source/InterceptRouting/InterceptRouting.cpp
+  source/InterceptRouting/InterceptRouting.h
+  source/InterceptRouting/InlineHookRouting.h
+  source/InterceptRouting/InstrumentRouting.h
+  source/InterceptRouting/RoutingPlugin.h
+  source/InterceptRouting/InstrumentRouting/instrument_routing_handler.cpp
+  source/InterceptRouting/NearBranchTrampoline/NearBranchTrampoline.h
 
   # intercept routing trampoline
-  source/TrampolineBridge/Trampoline/arm/trampoline_arm.cc
-  source/TrampolineBridge/Trampoline/arm64/trampoline_arm64.cc
-  source/TrampolineBridge/Trampoline/x86/trampoline_x86.cc
-  source/TrampolineBridge/Trampoline/x64/trampoline_x64.cc
+  source/TrampolineBridge/Trampoline/trampoline_arm.cc
+  source/TrampolineBridge/Trampoline/trampoline_arm64.cc
+  source/TrampolineBridge/Trampoline/trampoline_x86.cc
+  source/TrampolineBridge/Trampoline/trampoline_x64.cc
 
   # closure trampoline bridge - arm
-  source/TrampolineBridge/ClosureTrampolineBridge/common_bridge_handler.cc
   source/TrampolineBridge/ClosureTrampolineBridge/arm/helper_arm.cc
   source/TrampolineBridge/ClosureTrampolineBridge/arm/closure_bridge_arm.cc
   source/TrampolineBridge/ClosureTrampolineBridge/arm/ClosureTrampolineARM.cc
@@ -152,6 +146,8 @@ set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}
   source/TrampolineBridge/ClosureTrampolineBridge/arm64/helper_arm64.cc
   source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_bridge_arm64.cc
   source/TrampolineBridge/ClosureTrampolineBridge/arm64/ClosureTrampolineARM64.cc
+  source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_bridge_arm64.asm
+  source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_trampoline_arm64.asm
   # closure trampoline bridge - x86
   source/TrampolineBridge/ClosureTrampolineBridge/x86/helper_x86.cc
   source/TrampolineBridge/ClosureTrampolineBridge/x86/closure_bridge_x86.cc
@@ -161,69 +157,38 @@ set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}
   source/TrampolineBridge/ClosureTrampolineBridge/x64/closure_bridge_x64.cc
   source/TrampolineBridge/ClosureTrampolineBridge/x64/ClosureTrampolineX64.cc
 
-  source/InterceptRouting/Routing/InstructionInstrument/InstructionInstrument.cc
-  source/InterceptRouting/Routing/InstructionInstrument/RoutingImpl.cc
-  source/InterceptRouting/Routing/InstructionInstrument/instrument_routing_handler.cc
-
-  source/InterceptRouting/Routing/FunctionInlineHook/FunctionInlineHook.cc
-  source/InterceptRouting/Routing/FunctionInlineHook/RoutingImpl.cc
-
   # plugin register
-  source/InterceptRouting/RoutingPlugin/RoutingPlugin.cc
 
   # main
   source/dobby.cpp
-  source/Interceptor.cpp
-  source/InterceptEntry.cpp
   )
 
-if (SYSTEM.Darwin AND DOBBY_BUILD_KERNEL_MODE)
-  set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}
-    # platform util
-    source/Backend/KernelMode/PlatformUtil/Darwin/ProcessRuntimeUtility.cc
 
-    # kernel mode - platform interface
-    source/Backend/KernelMode/UnifiedInterface/platform-darwin.cc
-    source/Backend/KernelMode/UnifiedInterface/exec_mem_placeholder.asm
-
-    # kernel mode - executable memory
-    source/Backend/KernelMode/ExecMemory/code-patch-tool-darwin.cc
-    source/Backend/KernelMode/ExecMemory/clear-cache-tool-all.c
-    )
-elseif (SYSTEM.Darwin)
+if (SYSTEM.Darwin AND NOT DOBBY_BUILD_KERNEL_MODE)
   set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}
-    # platform util
     source/Backend/UserMode/PlatformUtil/Darwin/ProcessRuntimeUtility.cc
 
-    # user mode - platform interface
     source/Backend/UserMode/UnifiedInterface/platform-posix.cc
 
-    # user mode - executable memory
     source/Backend/UserMode/ExecMemory/code-patch-tool-darwin.cc
     source/Backend/UserMode/ExecMemory/clear-cache-tool-all.c
     )
 
 elseif (SYSTEM.Linux OR SYSTEM.Android)
   set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}
-    # platform util
     source/Backend/UserMode/PlatformUtil/Linux/ProcessRuntimeUtility.cc
 
-    # user mode - platform interface
     source/Backend/UserMode/UnifiedInterface/platform-posix.cc
 
-    # user mode - executable memory
     source/Backend/UserMode/ExecMemory/code-patch-tool-posix.cc
     source/Backend/UserMode/ExecMemory/clear-cache-tool-all.c
     )
 elseif (SYSTEM.Windows)
   set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}
-    # platform util
     source/Backend/UserMode/PlatformUtil/Windows/ProcessRuntimeUtility.cc
 
-    # user mode - platform interface
     source/Backend/UserMode/UnifiedInterface/platform-windows.cc
 
-    # user mode - executable memory
     source/Backend/UserMode/ExecMemory/code-patch-tool-windows.cc
     source/Backend/UserMode/ExecMemory/clear-cache-tool-all.c
     )
@@ -261,9 +226,8 @@ endif ()
 
 if (NearBranch)
   set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}
-    source/InterceptRouting/RoutingPlugin/NearBranchTrampoline/near_trampoline_arm64.cc
-    source/InterceptRouting/RoutingPlugin/NearBranchTrampoline/NearBranchTrampoline.cc
-    source/MemoryAllocator/NearMemoryAllocator.cc)
+    source/InterceptRouting/NearBranchTrampoline/near_trampoline_arm64.cc
+    )
 endif ()
 
 # ---
@@ -314,12 +278,18 @@ message(STATUS "[Dobby] ${DOBBY_BUILD_VERSION}")
 
 # ---
 
-add_library(dobby SHARED
+set(SOURCE_FILE_LIST
   ${dobby.HEADER_FILE_LIST}
   ${dobby.SOURCE_FILE_LIST}
   ${logging.SOURCE_FILE_LIST}
-  ${misc_helper.SOURCE_FILE_LIST}
   ${dobby.plugin.SOURCE_FILE_LIST}
+  )
+
+get_absolute_path_list(SOURCE_FILE_LIST SOURCE_FILE_LIST_)
+set(SOURCE_FILE_LIST ${SOURCE_FILE_LIST_})
+
+add_library(dobby SHARED
+  ${SOURCE_FILE_LIST}
   )
 
 target_include_directories(dobby PUBLIC
@@ -329,11 +299,7 @@ target_include_directories(dobby PUBLIC
 # ---
 
 add_library(dobby_static STATIC
-  ${dobby.HEADER_FILE_LIST}
-  ${dobby.SOURCE_FILE_LIST}
-  ${logging.SOURCE_FILE_LIST}
-  ${misc_helper.SOURCE_FILE_LIST}
-  ${dobby.plugin.SOURCE_FILE_LIST}
+  ${SOURCE_FILE_LIST}
   )
 
 target_include_directories(dobby_static PUBLIC
@@ -359,6 +325,7 @@ set_target_properties(dobby_static
 
 target_compile_definitions(dobby PRIVATE
   "COMPILE_DEFINITIONS ${compile_definitions}"
+  -DBUILD_WITH_TRAMPOLINE_ASM
   )
 target_compile_definitions(dobby_static PRIVATE
   "COMPILE_DEFINITIONS ${compile_definitions}"

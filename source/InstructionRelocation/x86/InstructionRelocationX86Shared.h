@@ -2,9 +2,11 @@
 
 #include "dobby/common.h"
 
-#include "MemoryAllocator/AssemblyCodeBuilder.h"
+#include "MemoryAllocator/AssemblerCodeBuilder.h"
 
 #include "x86_insn_decode/x86_insn_decode.h"
+
+#include "X86DecodeKit.h"
 
 int GenRelocateCodeFixed(void *buffer, CodeMemBlock *origin, CodeMemBlock *relocated, bool branch);
 

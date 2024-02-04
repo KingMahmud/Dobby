@@ -32,13 +32,17 @@
 #include "PlatformUtil/ProcessRuntimeUtility.h"
 
 static bool memory_region_comparator(MemRegion a, MemRegion b) {
-  return (a.start < b.start);
+  return (a.addr() < b.addr());
 }
 
-tinystl::vector<MemRegion> regions;
+stl::vector<MemRegion> *regions;
 
-const tinystl::vector<MemRegion> &ProcessRuntimeUtility::GetProcessMemoryLayout() {
-  regions.clear();
+const stl::vector<MemRegion> &ProcessRuntimeUtility::GetProcessMemoryLayout() {
+  if (regions == nullptr) {
+    regions = new stl::vector<MemRegion>();
+  }
+
+  regions->clear();
 
   vm_region_submap_info_64 region_submap_info;
   mach_msg_type_number_t count = VM_REGION_SUBMAP_INFO_COUNT_64;
@@ -74,21 +78,21 @@ const tinystl::vector<MemRegion> &ProcessRuntimeUtility::GetProcessMemoryLayout(
       DEBUG_LOG("%p --- %p", addr, addr + size);
 #endif
       MemRegion region = MemRegion(addr, size, permission);
-      regions.push_back(region);
+      regions->push_back(region);
       addr += size;
     }
   }
 
   // std::sort(ProcessMemoryLayout.begin(), ProcessMemoryLayout.end(), memory_region_comparator);
 
-  return regions;
+  return *regions;
 }
 
-static tinystl::vector<RuntimeModule> *modules;
+static stl::vector<RuntimeModule> *modules;
 
-const tinystl::vector<RuntimeModule> &ProcessRuntimeUtility::GetProcessModuleMap() {
+const stl::vector<RuntimeModule> &ProcessRuntimeUtility::GetProcessModuleMap() {
   if (modules == nullptr) {
-    modules = new tinystl::vector<RuntimeModule>();
+    modules = new stl::vector<RuntimeModule>();
   }
   modules->clear();
 
@@ -106,11 +110,11 @@ const tinystl::vector<RuntimeModule> &ProcessRuntimeUtility::GetProcessModuleMap
 
   RuntimeModule module = {0};
   strncpy(module.path, "dummy-placeholder-module", sizeof(module.path) - 1);
-  module.load_address = 0;
+  module.base = 0;
   modules->push_back(module);
 
   strncpy(module.path, infos->dyldPath, sizeof(module.path) - 1);
-  module.load_address = (void *)infos->dyldImageLoadAddress;
+  module.base = (void *)infos->dyldImageLoadAddress;
   modules->push_back(module);
 
   for (int i = 0; i < infoArrayCount; ++i) {
@@ -118,12 +122,12 @@ const tinystl::vector<RuntimeModule> &ProcessRuntimeUtility::GetProcessModuleMap
 
     {
       strncpy(module.path, info->imageFilePath, sizeof(module.path) - 1);
-      module.load_address = (void *)info->imageLoadAddress;
+      module.base = (void *)info->imageLoadAddress;
       modules->push_back(module);
     }
   }
 
-  modules->sort([](const RuntimeModule &a, const RuntimeModule &b) -> int { return a.load_address < b.load_address; });
+  modules->sort([](const RuntimeModule &a, const RuntimeModule &b) -> int { return a.base < b.base; });
 
   return *modules;
 }
